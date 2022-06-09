@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Crtanje Logickih Kola</title>
+	</head>
+
+	<style>
+		html, body {
+			margin: 0px;
+			padding: 0px;
+			width: 100%;
+			height: 100%;
+			background-color: aqua;
+		}
+
+		.canvas {
+			display: block;
+			padding: 5px;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		.toolbar {
+			position: absolute;
+			left: 1%;
+			top: 20%;
+			width: 5%;
+			min-width: 80px;
+			height: 60%;
+			min-height: 400px;
+			border-radius: 10px;
+			box-shadow: 0 0 10px black;
+			background-color: white;
+			overflow: hidden;
+		}
+
+		.tool {
+			border: none;
+			margin: 0;
+			width: 100%;
+			height: 11.2%;
+			background-color: white;
+			border-bottom: 1px solid black;
+			cursor: pointer;
+			text-decoration: none;
+			box-sizing: border-box;
+		}
+
+		.tool:hover{
+			background-color: rgb(240, 240, 240);
+		}
+
+	</style>
+
+	<body>
+		<canvas class="canvas" id="canvas"></canvas>
+		<div class="toolbar">
+			<button class="tool" onclick="changeTool(1)">Hand</button>
+			<button class="tool" onclick="changeTool(2)">Line</button>
+			<button class="tool" onclick="changeTool(3)">AND</button>
+			<button class="tool" onclick="changeTool(4)">OR</button>
+			<button class="tool" onclick="changeTool(5)">NOT</button>
+			<button class="tool" onclick="changeTool(6)">Switch</button>
+			<button class="tool" onclick="changeTool(7)">Output</button>
+			<button class="tool" onclick="undo()">Undo</button>
+			<button class="tool" onclick="clearCanvas()" style="border: none">Clear All</button>
+		</div>
+</body>
+
+	<script>
+		const canvas = document.getElementById("canvas");
+		const ctx = canvas.getContext("2d");
+
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		
+		items = [];
+
+		var startLineX = 0;
+		var startLineY = 0;
+		var x = 0;
+		var y = 0;
+
+		mouseDown = null;
+		mouseMove = null;
+
+		tool = "line";
+
+		window.addEventListener('resize', resizeCanvas, false);
+        
+		function resizeCanvas() {
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+			wipeCanvas();
+			drawCanvas();
+		}
+
+		function changeTool(num)
+		{
+			switch (num) {
+				case 1:
+					tool = "hand";
+					document.body.style.cursor = "pointer";
+					break;
+				case 2:
+					tool = 'line';
+					document.body.style.cursor = "default";
+					break;
+				case 3:
+					tool = "and";
+					document.body.style.cursor = "default";
+					break;
+				case 4:
+					tool = "or";
+					document.body.style.cursor = "default";
+					break;
+				case 5:
+					tool = "not";
+					document.body.style.cursor = "default";
+					break;
+				case 6:
+					tool = "power";
+					document.body.style.cursor = "default";
+					break;
+				case 7:
+					tool = "output";
+					document.body.style.cursor = "default";
+					break;
+			}
+		}
+
+		clearCanvas();
+
+		function drawObject(item) {
+			let gateSize = 30;
+			switch (item.type)
+			{
+				case "dot":
+					ctx.fillStyle = item.color;
+					ctx.beginPath();
+					ctx.ellipse(item.x, item.y, 3, 3, 0, 0, 2 * Math.PI);
+					ctx.fill();
+					ctx.closePath();
+					break;
+
+				case "line":
+					ctx.strokeStyle = (item.value ? "red" : "black");
+					ctx.lineWidth = item.lineThickness;
+					ctx.beginPath();
+					ctx.moveTo(item.startX, item.startY);
+					ctx.lineTo(item.endX, item.endY);
+					ctx.stroke();
+					if(item.endPoints)
+					{
+						ctx.fillStyle = "red";
+						ctx.beginPath();
+						ctx.ellipse(item.startX, item.startY, 3, 3, 0, 0, 2 * Math.PI);
+						ctx.fill();
+						ctx.closePath();
+						ctx.beginPath();
+						ctx.ellipse(item.endX, item.endY, 3, 3, 0, 0, 2 * Math.PI);
+						ctx.fill();
+						ctx.closePath();
+					}
+					break;
+				case "andgate":
+					//draw left side
+					penX = item.x;
+					penY = item.y;
+					ctx.strokeStyle = "black";
+					ctx.lineWidth = "2px";
+					ctx.beginPath();
+					ctx.moveTo(penX, penY - gateSize);
+					ctx.lineTo(penX - gateSize, penY - gateSize);
+					ctx.lineTo(penX - gateSize, penY + gateSize);
+					ctx.lineTo(penX, penY + gateSize);
+					
+					//draw right side
+					ctx.arc(item.x, item.y, gateSize, Math.PI / 2, -Math.PI / 2, 1);
+
+					ctx.stroke();
+
+					//draw inputA
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueA ? "red" : "black");
+					ctx.moveTo(item.inputA.x, item.inputA.y);
+					ctx.lineTo(item.inputA.x + gateSize, item.inputA.y);
+					ctx.stroke();
+					//draw inputB
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueB ? "red" : "black");
+					ctx.moveTo(item.inputB.x, item.inputB.y);
+					ctx.lineTo(item.inputB.x + gateSize, item.inputB.y);
+					ctx.stroke();
+					//draw output
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueOut ? "red" : "black");
+					ctx.moveTo(item.outputPos.x, item.outputPos.y);
+					ctx.lineTo(item.outputPos.x - gateSize, item.outputPos.y);
+					ctx.stroke();
+					break;
+				case "orgate":
+					penX = item.x;
+					penY = item.y;
+					ctx.strokeStyle = "black";
+					ctx.lineWidth = "2px";
+					ctx.beginPath();
+
+
+					ctx.arc(item.x - gateSize * 2, item.y, 33.54, Math.PI / 3, -Math.PI / 3, 1);
+
+					ctx.lineTo(item.x + gateSize, item.y);
+					ctx.closePath();
+
+					ctx.stroke();
+
+					//draw inputA
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueA ? "red" : "black");
+					ctx.moveTo(item.inputA.x, item.inputA.y);
+					ctx.lineTo(item.inputA.x + gateSize, item.inputA.y);
+					ctx.stroke();
+					//draw inputB
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueB ? "red" : "black");
+					ctx.moveTo(item.inputB.x, item.inputB.y);
+					ctx.lineTo(item.inputB.x + gateSize, item.inputB.y);
+					ctx.stroke();
+					//draw output
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueOut ? "red" : "black");
+					ctx.moveTo(item.outputPos.x, item.outputPos.y);
+					ctx.lineTo(item.outputPos.x - gateSize, item.outputPos.y);
+
+					ctx.stroke();
+					break;
+				case "power":
+					ctx.fillStyle = "lightgreen";
+					ctx.strokeStyle = (item.value ? "red" : "black");
+					ctx.lineWidth = "1px";
+					ctx.beginPath();
+					ctx.ellipse(item.x, item.y, 20, 20, 0, 0, 2 * Math.PI);
+					ctx.fill();
+					ctx.beginPath();
+					ctx.moveTo(item.outputPos.x, item.outputPos.y);
+					ctx.lineTo(item.outputPos.x - 40, item.outputPos.y);
+					ctx.stroke();
+					break;
+				case "output":
+					ctx.fillStyle = (item.value ? "yellow" : "black");
+					ctx.strokeStyle = (item.value ? "red" : "black");
+					ctx.lineWidth = "1px";
+					ctx.beginPath();
+					ctx.ellipse(item.x, item.y, 20, 20, 0, 0, 2 * Math.PI);
+					ctx.fill();
+					ctx.beginPath();
+					ctx.moveTo(item.input.x, item.input.y);
+					ctx.lineTo(item.input.x + 40, item.input.y);
+					ctx.stroke();
+					break;
+				case "notgate":
+					//draw left side
+					penX = item.x;
+					penY = item.y;
+
+					ctx.strokeStyle = "black";
+					ctx.lineWidth = "2px";
+
+					ctx.beginPath();
+					ctx.moveTo(penX - gateSize, penY - gateSize);
+					ctx.lineTo(penX - gateSize, penY + gateSize);
+					ctx.lineTo(item.x + gateSize, item.y);
+					ctx.closePath();
+					ctx.stroke();
+
+					//draw inputA
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueA ? "red" : "black");
+					ctx.moveTo(item.input.x, item.input.y);
+					ctx.lineTo(item.input.x + gateSize, item.input.y);
+					ctx.stroke();
+
+					//draw output
+					ctx.beginPath();
+					ctx.strokeStyle = (item.valueOut ? "red" : "black");
+					ctx.moveTo(item.outputPos.x, item.outputPos.y);
+					ctx.lineTo(item.outputPos.x - gateSize, item.outputPos.y);
+					ctx.stroke();
+
+					break;
+			}
+		}
+
+		canvas.addEventListener('mousedown', (event) => {
+			if(tool != "hand")
+			{
+				mouseDown = checkIfNearSth(event.offsetX, event.offsetY);
+			}
+			else
+			{
+				mouseDown = {x: event.offsetX, y: event.offsetY};
+				checkButtonClick();
+			}
+			mouseMove = mouseDown;
+			drawCanvas();
+			return;
+		});
+
+		canvas.addEventListener('mousemove', (event) => {
+			if(tool != "hand")
+			{
+				mouseMove = checkIfNearSth(event.offsetX, event.offsetY);
+			}
+			else
+			{
+				mouseMove = {x: event.offsetX, y: event.offsetY};
+			}
+			drawCanvas();
+			return;
+		});
+
+		canvas.addEventListener('mouseup', (event) => {
+			if(mouseDown == null || tool == "hand")
+			{
+				mouseDown = null;
+				mouseMove = null;
+				return;
+			}
+
+			mouseDown = checkIfNearSth(mouseDown.x, mouseDown.y);
+			createObject();
+			drawCanvas();
+			mouseDown = null;
+			mouseMove = null;
+			return;
+		});
+
+		function createObject() {
+			item = {};
+			
+			if(mouseDown != null)
+			{
+				if(tool == "line")
+				{
+					item = {type: "dot", color: "red", x: mouseMove.x, y: mouseMove.y, id: ""};
+			
+					if(mouseMove != null && (Math.sqrt(Math.pow(mouseDown.x - mouseMove.x, 2) + Math.pow(mouseDown.y - mouseMove.y, 2)) > 10))
+					{
+						item = {type: "line", value: false, lineThickness: 1, startX: mouseDown.x, startY: mouseDown.y, endX: mouseMove.x, endY: mouseMove.y, endPoints: true, id: ""};
+					}
+					item = checkStart(item);
+					checkEnd(item);
+				}
+				else if(tool == "and")
+				{
+					item = {type: "andgate", valueA: false, valueB: false, valueOut: false, x: mouseMove.x, y: mouseMove.y, inputA: calcGateLinePos("inA"), inputAid: getRandomId(), inputB: calcGateLinePos("inB"), inputBid: getRandomId(), outputPos: calcGateLinePos("out"), id: getRandomId()};
+				}
+				else if(tool == "or")
+				{
+					item = {type: "orgate", valueA: false, valueB: false, valueOut: false, x: mouseMove.x, y: mouseMove.y, inputA: calcGateLinePos("inA"), inputAid: getRandomId(), inputB: calcGateLinePos("inB"), inputBid: getRandomId(), outputPos: calcGateLinePos("out"), id: getRandomId()};
+				}
+				else if(tool == "not")
+				{
+					item = {type: "notgate", valueA: false, valueOut: true, x: mouseMove.x, y: mouseMove.y, input: calcGateLinePos("not"), inputid: getRandomId(), outputPos: calcGateLinePos("out"), id: getRandomId()};
+				}
+				else if(tool == "power")
+				{
+					item = {type: "power", value: false, x: mouseMove.x, y: mouseMove.y, outputPos: calcGateLinePos("pow"), id: getRandomId()};
+				}
+				else if(tool == "output")
+				{
+					item = {type: "output", value: false, x: mouseMove.x, y: mouseMove.y, input: calcGateLinePos("not"), id: getRandomId()};
+				}
+
+				items.push(item);
+			}
+		}
+
+		function checkStart(item) {
+			if(mouseDown.id == "")
+			{
+				item.id = getRandomId();
+			}
+			else{
+				item.id = mouseDown.id;
+			}
+			return item;
+		}
+
+		function checkEnd(item) {
+			if(mouseMove.id != "")
+			{
+				items.forEach(el => {
+					if(el.id == mouseMove.id || el.inputAid == mouseMove.id || el.inputBid == mouseMove.id || el.inputid == mouseMove.id)
+					{
+						if(el.type == "dot")
+						{
+							el.id = item.id;
+						}
+						if(el.type == "output")
+						{
+							el.id = item.id;
+						}
+						else if(el.type == "line")
+						{
+							el.id = item.id;
+						}
+						else if(el.type == "power")
+						{
+							el.id = item.id;
+						}
+						else if(el.type == "notgate")
+						{
+							if(el.inputid == mouseMove.id)
+							{
+								el.inputid = item.id;
+							}
+							if(el.id == mouseMove.id)
+							{
+								el.id = item.id;
+							}
+						}
+						else if(el.type == "andgate")
+						{
+							if(el.inputAid == mouseMove.id)
+							{
+								el.inputAid = item.id;
+							}
+							if(el.inputBid == mouseMove.id)
+							{
+								el.inputBid = item.id;
+							}
+							if(el.id == mouseMove.id)
+							{
+								el.id = item.id;
+							}
+						}
+						else if(el.type == "orgate")
+						{
+							if(el.inputAid == mouseMove.id)
+							{
+								el.inputAid = item.id;
+							}
+							if(el.inputBid == mouseMove.id)
+							{
+								el.inputBid = item.id;
+							}
+							if(el.id == mouseMove.id)
+							{
+								el.id = item.id;
+							}
+						}
+					}
+				});
+			}
+		}
+
+		function getRandomId() {
+			letters = "abcdefghijklmnop";
+			id = "";
+			for(let i = 0; i < 16; i++)
+			{
+				id = id + letters[Math.floor(Math.random() * 16)];
+			}
+			return id;
+		}
+
+		function clearCanvas()
+		{
+			wipeCanvas();
+			items = [];
+		}
+
+		function wipeCanvas() {
+			ctx.fillStyle = "white";
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+		}
+
+		function calculateValues() {
+			for(let i = 0; i < (items.filter(el => el.type == "andgate" || el.type == "orgate" || el.type == "notgate")).length; i++)
+			{
+				items.filter(el => el.type == "andgate" || el.type == "orgate" || el.type == "notgate").forEach(item => {
+					if(item.type == "andgate")
+					{
+						item.valueOut = item.valueA && item.valueB;
+					}
+					else if(item.type == "orgate")
+					{
+						item.valueOut = item.valueA || item.valueB;
+					}
+					else if(item.type == "notgate")
+					{
+						item.valueOut = !item.valueA;
+					}
+					setValueForId(item.id, item.valueOut);
+				});
+			}
+		}
+
+		function setValueForId(id, value1) {
+			items.forEach(el => {
+				if(el.type == "line")
+				{
+					if(el.id == id)
+					{
+						el.value = value1;
+					}
+				}
+				if(el.type == "output")
+				{
+					if(el.id == id)
+					{
+						el.value = value1;
+					}
+				}
+				if(el.type == "andgate" || el.type == "orgate")
+				{
+					if(el.inputAid == id)
+					{
+						el.valueA = value1;
+					}
+					if(el.inputBid == id)
+					{
+						el.valueB = value1;
+					}
+				}
+				if(el.type == "notgate")
+				{
+					if(el.inputid == id)
+					{
+						el.valueA = value1;
+					}
+				}
+			});
+		}
+
+		function checkButtonClick() {
+			items.forEach(item => {
+				if(item.type == "power")
+				{
+					if(Math.sqrt((item.x - mouseDown.x) * (item.x - mouseDown.x) + (item.y - mouseDown.y) * (item.y - mouseDown.y)) < 20)
+					{
+						item.value = !item.value;
+						setValueForId(item.id, item.value);
+						return;
+					}
+				}
+			});
+		}
+
+		function drawCanvas() {
+			calculateValues();
+
+			wipeCanvas();
+			items.forEach(item => {
+				drawObject(item);
+			});
+
+			item = {};
+
+			if(mouseDown != null)
+			{
+				if(tool == "hand")
+				{
+				}
+				else {
+					item = {type: "dot", color: "blue", x: mouseMove.x, y: mouseMove.y, id: ""};
+					if(mouseMove != null && (Math.sqrt(Math.pow(mouseDown.x - mouseMove.x, 2) + Math.pow(mouseDown.y - mouseMove.y, 2)) > 10))
+					{
+						item = {type: "line", color: "black", lineThickness: 1, startX: mouseDown.x, startY: mouseDown.y, endX: mouseMove.x, endY: mouseMove.y, endPoints: true, id: ""};
+					}
+					drawObject(item);
+				}
+			}
+			else if(mouseMove != null) {
+				if(tool == "line")
+				{
+					item = {type: "dot", color: "blue", x: mouseMove.x, y: mouseMove.y, id: ""};
+				}
+				else if(tool == "and")
+				{
+					item = {type: "andgate", valueA: false, valueB: false, valueOut: false, x: mouseMove.x, y: mouseMove.y, inputA: calcGateLinePos("inA"), inputAid: "", inputB: calcGateLinePos("inB"), inputBid: "", outputPos: calcGateLinePos("out"), id: ""};
+				}
+				else if(tool == "or")
+				{
+					item = {type: "orgate", valueA: false, valueB: false, valueOut: false, x: mouseMove.x, y: mouseMove.y, inputA: calcGateLinePos("inA"), inputAid: "", inputB: calcGateLinePos("inB"), inputBid: "", outputPos: calcGateLinePos("out"), id: ""};
+				}
+				else if(tool == "not")
+				{
+					item = {type: "notgate", valueA: false, valueOut: true, x: mouseMove.x, y: mouseMove.y, input: calcGateLinePos("not"), inputid: "", outputPos: calcGateLinePos("out"), id: ""};
+				}
+				else if(tool == "power")
+				{
+					item = {type: "power", value: false, x: mouseMove.x, y: mouseMove.y, outputPos: calcGateLinePos("pow"), id: ""};
+				}
+				else if(tool == "output")
+				{
+					item = {type: "output", value: false, x: mouseMove.x, y: mouseMove.y, input: calcGateLinePos("not"), id: ""};
+				}
+				drawObject(item);
+			}
+		}
+
+		function calcGateLinePos(line)
+		{
+			pos = {};
+			switch (line) {
+				case "inA":
+					pos = {x: mouseMove.x - 60, y: mouseMove.y - 15};
+					break;
+				case "inB":
+					pos = {x: mouseMove.x - 60, y: mouseMove.y + 15};
+					break;
+				case "out":
+					pos = {x: mouseMove.x + 60, y: mouseMove.y};
+					break;
+				case "pow":
+					pos = {x: mouseMove.x + 60, y: mouseMove.y};
+					break;
+				case "not":
+					pos = {x: mouseMove.x - 60, y: mouseMove.y};
+					break;
+			}
+			return pos;
+		}
+
+		function undo() {
+			items.pop();
+			drawCanvas();
+		}
+
+		function checkIfNearSth(x, y) {
+			minDistLine = 10;
+			minDistDot = 16;
+			id = "";
+			posLine = {x: x, y: y, id: id};
+			posDot = {x: x, y: y, id: id};
+			items.forEach(el => {
+				if(el.type == "line")
+				{
+					startX = el.startX < el.endX ? el.startX : el.endX;
+					endX = el.startX > el.endX ? el.startX : el.endX;
+					
+					a = (el.endY - el.startY)/(el.endX - el.startX);
+
+					b = (el.endX - el.startX)/(el.endY - el.startY);
+					
+					q = (-el.startY + y + el.startX * a + x * b)/(a + b);
+
+					p = a * (q - el.startX) + el.startY;
+					d = Math.sqrt((x - q) * (x - q) + (y - p) * (y - p));
+					if(d < minDistLine && q >= startX && q <= endX)
+					{
+						minDistLine = d;
+						posLine = {x: q, y: p, id: el.id};
+					}
+
+					d = Math.sqrt((el.startX - x) * (el.startX - x) + (el.startY - y) * (el.startY - y));
+					if(d < minDistDot)
+					{
+						minDistDot = d;
+						posDot = {x: el.startX, y: el.startY, id: el.id};
+					}
+					
+					d = Math.sqrt((el.endX - x) * (el.endX - x) + (el.endY - y) * (el.endY - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.endX, y: el.endY, id: el.id};
+					}
+				}
+				else if(el.type == "dot")
+				{
+					d = Math.sqrt((el.x - x) * (el.x - x) + (el.y - y) * (el.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.x, y: el.y, id: el.id};
+					}
+				}
+				else if(el.type == "power")
+				{
+					d = Math.sqrt((el.outputPos.x - x) * (el.outputPos.x - x) + (el.outputPos.y - y) * (el.outputPos.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.outputPos.x, y: el.outputPos.y, id: el.id};
+					}
+				}
+				else if(el.type == "output")
+				{
+					d = Math.sqrt((el.input.x - x) * (el.input.x - x) + (el.input.y - y) * (el.input.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.input.x, y: el.input.y, id: el.id};
+					}
+				}
+				else if(el.type == "notgate")
+				{
+					d = Math.sqrt((el.outputPos.x - x) * (el.outputPos.x - x) + (el.outputPos.y - y) * (el.outputPos.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.outputPos.x, y: el.outputPos.y, id: el.id};
+					}
+
+					d = Math.sqrt((el.input.x - x) * (el.input.x - x) + (el.input.y - y) * (el.input.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.input.x, y: el.input.y, id: el.inputid};
+					}
+				}
+				else if(el.type == "andgate" || el.type == "orgate")
+				{
+					d = Math.sqrt((el.inputA.x - x) * (el.inputA.x - x) + (el.inputA.y - y) * (el.inputA.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.inputA.x, y: el.inputA.y, id: el.inputAid};
+					}
+					d = Math.sqrt((el.inputB.x - x) * (el.inputB.x - x) + (el.inputB.y - y) * (el.inputB.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.inputB.x, y: el.inputB.y, id: el.inputBid};
+					}
+					d = Math.sqrt((el.outputPos.x - x) * (el.outputPos.x - x) + (el.outputPos.y - y) * (el.outputPos.y - y));
+					if(d < minDistDot)
+					{
+						id = el.id;
+						minDistDot = d;
+						posDot = {x: el.outputPos.x, y: el.outputPos.y, id: el.id};
+					}
+				}
+			});
+
+			if(minDistDot - 5 <= minDistLine)
+			{
+				return posDot;
+			}
+
+			return posLine;
+		}
+
+	</script>
+</html>
